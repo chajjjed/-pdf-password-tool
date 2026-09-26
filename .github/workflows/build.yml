@@ -28,9 +28,24 @@ jobs:
 
       - name: Build APK with buildozer
         run: |
-          yes | buildozer android debug
+          set -o pipefail
+          yes | buildozer android debug 2>&1 | tee build_output.log
+
+      - name: Show error details if build failed
+        if: failure()
+        run: |
+          echo "===== LAST 300 LINES OF BUILD LOG ====="
+          tail -n 300 build_output.log
+
+      - name: Upload full build log (always, even on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-build-log
+          path: build_output.log
 
       - name: Upload APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pdf-password-tool-apk
