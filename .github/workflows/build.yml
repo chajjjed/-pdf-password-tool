@@ -41,8 +41,8 @@ jobs:
       - name: Show error details if build failed
         if: failure()
         run: |
-          echo "===== LAST 300 LINES OF BUILD LOG ====="
-          tail -n 300 build_output.log
+          echo "===== LINES CONTAINING FAILURE/ERROR =====" grep -n -i -E "FAILURE|BUILD FAILED|error:|Exception|Could not|Unable to" build_output.log
+          tail -n 100 echo "" echo "===== LAST 150 LINES (for context) =====" tail -n 150 build_output.log
 
       - name: Upload full build log (always, even on failure)
         if: always()
