@@ -1,6 +1,7 @@
 """
-PDF Password Tool - Android App (built with Buildozer)
----------------------------------------------------------
+PDF Password Tool - Android Version (runs inside Pydroid 3)
+-------------------------------------------------------------
+Same idea as the Windows version:
 - Pick one or more password-protected PDFs.
 - The app tries all passwords in your saved "password pool" automatically.
 - If one matches, it unlocks the file automatically.
@@ -9,6 +10,10 @@ PDF Password Tool - Android App (built with Buildozer)
 
 Unlocked files are saved in the SAME folder as the original,
 named "<filename>_unlocked.pdf".
+
+Requirements (install once inside Pydroid 3's Pip screen):
+    kivy
+    pypdf
 """
 
 import os
@@ -29,15 +34,10 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.errors import FileNotDecryptedError, PdfReadError
 
 Window.clearcolor = (0.06, 0.09, 0.16, 1)  # dark navy background
-
 try:
-    from android.permissions import request_permissions, Permission
-    request_permissions([
-        Permission.READ_EXTERNAL_STORAGE,
-        Permission.WRITE_EXTERNAL_STORAGE,
-    ])
-except ImportError:
-    pass  # not running on Android (e.g. testing on desktop)
+    Window.softinput_mode = "below_target"  # shift screen up so keyboard never covers the focused input
+except Exception:
+    pass
 
 
 # ---------- Password pool helpers ----------
@@ -129,21 +129,56 @@ def save_unlocked_copy(pdf_path, password, overwrite=False):
 
 # ---------- UI ----------
 
+class HelpPopup(Popup):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.title = "How it Works"
+        self.title_size = 40
+        self.size_hint = (0.9, 0.7)
+        self.pos_hint = {"top": 0.95}
+
+        layout = BoxLayout(orientation="vertical", spacing=15, padding=20)
+        
+        help_text = (
+            "Welcome to the PDF Password Tool!\n\n"
+            "This app unlocks password-protected PDFs and remembers the passwords so you don't have to type them again.\n\n"
+            "1. Select your locked PDF file(s).\n"
+            "2. If the app doesn't know the password yet, it will ask you for it.\n"
+            "3. Once entered, the password is saved to your secure 'Password Pool'.\n"
+            "4. Next time you open a PDF with that same password, it unlocks instantly and automatically!\n\n"
+            "Unlocked files are safely saved in the same folder as the original."
+        )
+
+        lbl = Label(text=help_text, font_size=34, halign="left", valign="top", color=(0.9, 0.95, 0.95, 1))
+        lbl.bind(width=lambda *x: lbl.setter("text_size")(lbl, (lbl.width, None)))
+        layout.add_widget(lbl)
+
+        close_btn = Button(text="Got it!", font_size=42, size_hint_y=None, height=75, background_color=(0.22, 0.74, 0.98, 1))
+        close_btn.bind(on_release=self.dismiss)
+        layout.add_widget(close_btn)
+
+        self.content = layout
+
+
 class PasswordPopup(Popup):
     def __init__(self, filename, on_submit, on_skip, **kwargs):
         super().__init__(**kwargs)
-        self.title = f"Password needed: {filename}"
-        self.size_hint = (0.9, 0.4)
+        self.title = f"Password needed for :  {filename}"
+        self.title_size = 40
+        self.size_hint = (0.9, 0.5)
+        self.pos_hint = {"top": 0.98}
 
-        layout = BoxLayout(orientation="vertical", spacing=10, padding=15)
-        layout.add_widget(Label(text="No saved password matched.\nEnter the correct password:"))
+        layout = BoxLayout(orientation="vertical", spacing=14, padding=18)
+        layout.add_widget(Label(text="No saved password matched.\nEnter the correct password:",
+                                 font_size=42))
 
-        self.input = TextInput(password=True, multiline=False, size_hint_y=None, height=45)
+        self.input = TextInput(password=True, multiline=False, font_size=54,
+                                size_hint_y=None, height=75)
         layout.add_widget(self.input)
 
-        btn_row = BoxLayout(size_hint_y=None, height=45, spacing=10)
-        submit_btn = Button(text="Unlock", background_color=(0.22, 0.74, 0.98, 1))
-        skip_btn = Button(text="Skip File", background_color=(0.4, 0.4, 0.4, 1))
+        btn_row = BoxLayout(size_hint_y=None, height=75, spacing=10)
+        submit_btn = Button(text="Unlock", font_size=42, background_color=(0.22, 0.74, 0.98, 1))
+        skip_btn = Button(text="Skip File", font_size=42, background_color=(0.4, 0.4, 0.4, 1))
         btn_row.add_widget(submit_btn)
         btn_row.add_widget(skip_btn)
         layout.add_widget(btn_row)
@@ -166,7 +201,7 @@ class PasswordPopup(Popup):
 
 class MainLayout(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(orientation="vertical", padding=15, spacing=10, **kwargs)
+        super().__init__(orientation="vertical", padding=20, spacing=24, **kwargs)
 
         self.overwrite = False
         self.queue = []
@@ -175,55 +210,78 @@ class MainLayout(BoxLayout):
         title = Label(
             text="[b]PDF Password Tool[/b]",
             markup=True,
-            font_size=24,
+            font_size=48,
             size_hint_y=None,
-            height=45,
+            height=55,
             color=(0.22, 0.74, 0.98, 1),
         )
         self.add_widget(title)
 
         subtitle = Label(
-            text="Unlocks PDFs using your saved password pool.",
-            font_size=13,
+            text="Unlock PDFs using your saved password pool.",
+            font_size=30,
             size_hint_y=None,
-            height=25,
-            color=(0.6, 0.65, 0.72, 1),
+            height=32,
+            color=(0.8, 0.85, 0.9, 1),
         )
         self.add_widget(subtitle)
 
         select_btn = Button(
-            text="Select PDF File(s)",
+            text="Select PDF File",
+            font_size=46,
             size_hint_y=None,
-            height=55,
+            height=70,
             background_color=(0.22, 0.74, 0.98, 1),
             bold=True,
         )
         select_btn.bind(on_release=self.open_file_chooser)
         self.add_widget(select_btn)
 
-        checkbox_row = BoxLayout(size_hint_y=None, height=35, spacing=8)
-        self.checkbox = CheckBox(size_hint_x=None, width=35)
+        # Centered Checkbox Row with Distinct Colors and Larger Box
+        checkbox_row = BoxLayout(size_hint_y=None, height=60, spacing=15, size_hint_x=None, pos_hint={'center_x': 0.5})
+        
+        # Significantly brighter neon green and physically larger CheckBox
+        self.checkbox = CheckBox(size_hint=(None, None), size=(60, 60), color=(0.2, 1.0, 0.2, 1)) 
         self.checkbox.bind(active=self.on_checkbox)
+        
+        cb_label = Label(text="Overwrite original file instead of saving a copy",
+                         font_size=38, color=(0.4, 0.9, 0.4, 1), size_hint_x=None)
+        cb_label.bind(texture_size=lambda instance, size: setattr(instance, 'width', size[0]))
+        
         checkbox_row.add_widget(self.checkbox)
-        checkbox_row.add_widget(Label(text="Overwrite original file instead of saving a copy",
-                                       font_size=12, color=(0.85, 0.87, 0.9, 1)))
+        checkbox_row.add_widget(cb_label)
+        checkbox_row.bind(minimum_width=checkbox_row.setter('width'))
+        
         self.add_widget(checkbox_row)
+
+        # Action Buttons Row (Passwords & Help side-by-side)
+        action_row = BoxLayout(size_hint_y=None, height=65, spacing=15)
 
         view_btn = Button(
             text="View Saved Passwords",
-            size_hint_y=None,
-            height=40,
+            font_size=36,
             background_color=(0.15, 0.19, 0.27, 1),
         )
         view_btn.bind(on_release=self.view_pool)
-        self.add_widget(view_btn)
+        
+        help_btn = Button(
+            text="Help & Info",
+            font_size=36,
+            size_hint_x=0.45,
+            background_color=(0.3, 0.35, 0.45, 1),
+        )
+        help_btn.bind(on_release=self.show_help)
 
-        self.add_widget(Label(text="Activity Log:", size_hint_y=None, height=25,
-                               halign="left", color=(0.85, 0.87, 0.9, 1)))
+        action_row.add_widget(view_btn)
+        action_row.add_widget(help_btn)
+        self.add_widget(action_row)
+
+        self.add_widget(Label(text="Activity Log:", font_size=34, size_hint_y=None, height=50,
+                               halign="left", color=(0.95, 0.95, 0.95, 1)))
 
         self.log_label = Label(
-            text="", font_size=12, size_hint_y=None, halign="left", valign="top",
-            color=(0.85, 0.87, 0.9, 1),
+            text="", font_size=20, size_hint_y=None, halign="left", valign="top",
+            color=(0.9, 0.95, 0.95, 1),
         )
         self.log_label.bind(width=lambda *x: self.log_label.setter("text_size")(
             self.log_label, (self.log_label.width, None)))
@@ -234,8 +292,25 @@ class MainLayout(BoxLayout):
         scroll.add_widget(self.log_label)
         self.add_widget(scroll)
 
+        credit = Label(
+            text="[b]By Narendra chajjed[/b]",
+            markup=True,
+            font_size=38,
+            size_hint_y=None,
+            height=35,
+            halign="right",
+            valign="middle",
+            color=(0.98, 0.82, 0.22, 1),
+        )
+        credit.bind(width=lambda *x: credit.setter("text_size")(credit, (credit.width, None)))
+        self.add_widget(credit)
+
         self.log(f"Password pool has {len(load_pool())} saved password(s).")
         self.log("Unlocked files save in the same folder as the original.")
+
+    def show_help(self, *args):
+        popup = HelpPopup()
+        popup.open()
 
     def on_checkbox(self, checkbox, value):
         self.overwrite = value
@@ -246,24 +321,40 @@ class MainLayout(BoxLayout):
     def view_pool(self, *args):
         passwords = load_pool()
         text = "\n".join(f"{i+1}. {pw}" for i, pw in enumerate(passwords)) or "No passwords saved yet."
-        popup = Popup(title="Saved Passwords", size_hint=(0.85, 0.6),
-                       content=Label(text=text))
+        
+        # Wrapped in a layout to give it padding from the edges
+        content_layout = BoxLayout(orientation='vertical', size_hint_y=None, padding=15)
+        
+        lbl = Label(
+            text=text, 
+            font_size=24, 
+            size_hint_y=None, 
+            halign="left", 
+            valign="top"
+        )
+        lbl.bind(width=lambda *x: lbl.setter("text_size")(lbl, (lbl.width, None)))
+        lbl.bind(texture_size=lambda *x: setattr(lbl, "height", lbl.texture_size[1]))
+        
+        content_layout.add_widget(lbl)
+        content_layout.bind(minimum_height=content_layout.setter('height'))
+        
+        scroll = ScrollView(size_hint=(1, 1))
+        scroll.add_widget(content_layout)
+        
+        popup = Popup(title="Saved Passwords", title_size=30, size_hint=(0.85, 0.6), content=scroll)
         popup.open()
 
     def open_file_chooser(self, *args):
-        start_path = "/storage/emulated/0/"
-        if not os.path.exists(start_path):
-            start_path = os.path.expanduser("~")
-
         chooser = FileChooserListView(
-            path=start_path,
+            path=os.path.expanduser("~/storage/shared") if os.path.exists(
+                os.path.expanduser("~/storage/shared")) else "/storage/emulated/0/",
             filters=["*.pdf"],
             multiselect=True,
         )
         layout = BoxLayout(orientation="vertical")
         layout.add_widget(chooser)
 
-        btn_row = BoxLayout(size_hint_y=None, height=50, spacing=10)
+        btn_row = BoxLayout(size_hint_y=None, height=70, spacing=10)
         select_btn = Button(text="Select", background_color=(0.22, 0.74, 0.98, 1))
         cancel_btn = Button(text="Cancel", background_color=(0.4, 0.4, 0.4, 1))
         btn_row.add_widget(select_btn)
