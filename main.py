@@ -25,7 +25,6 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
-from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.checkbox import CheckBox
 from kivy.core.window import Window
@@ -163,7 +162,7 @@ class HelpPopup(Popup):
 class PasswordPopup(Popup):
     def __init__(self, filename, on_submit, on_skip, **kwargs):
         super().__init__(**kwargs)
-        self.title = f"Password needed for :  {filename}"
+        self.title = f"Password needed for: {filename}"
         self.title_size = 40
         self.size_hint = (0.9, 0.5)
         self.pos_hint = {"top": 0.98}
@@ -199,6 +198,144 @@ class PasswordPopup(Popup):
         self._on_skip()
 
 
+class PDFChooserPopup(Popup):
+    """Custom File Chooser with Checkboxes for picking multiple PDFs easily"""
+    def __init__(self, on_confirm, **kwargs):
+        super().__init__(**kwargs)
+        self.title = "Select PDF File(s)"
+        self.title_size = 36
+        self.size_hint = (0.95, 0.95)
+        self.on_confirm = on_confirm
+        self.selected_files = set()
+        
+        # Determine starting path
+        base = os.path.expanduser("~/storage/shared")
+        if not os.path.exists(base):
+            base = "/storage/emulated/0/"
+        self.current_path = base
+        
+        self.main_layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
+        
+        # Top Path Label
+        self.path_label = Label(text=self.current_path, font_size=24, size_hint_y=None, height=45, color=(0.7, 0.75, 0.8, 1))
+        self.path_label.bind(size=lambda b, s: b.setter('text_size')(b, (s[0], s[1])))
+        self.path_label.bind(valign=lambda b, v: setattr(b, 'valign', 'middle'))
+        self.main_layout.add_widget(self.path_label)
+        
+        # Scrollable area for folders and files
+        self.scroll = ScrollView()
+        self.list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=8)
+        self.list_layout.bind(minimum_height=self.list_layout.setter('height'))
+        self.scroll.add_widget(self.list_layout)
+        self.main_layout.add_widget(self.scroll)
+        
+        # Selection counter
+        self.status_label = Label(
+            text="0 files selected", 
+            font_size=32, 
+            color=(0.98, 0.82, 0.22, 1), 
+            bold=True,
+            size_hint_y=None, height=50
+        )
+        self.main_layout.add_widget(self.status_label)
+
+        # Bottom Buttons
+        bottom_btn_row = BoxLayout(size_hint_y=None, height=70, spacing=10)
+        start_btn = Button(text="Unlock Batch", font_size=34, background_color=(0.22, 0.74, 0.98, 1))
+        cancel_btn = Button(text="Cancel", font_size=34, background_color=(0.4, 0.4, 0.4, 1))
+        bottom_btn_row.add_widget(start_btn)
+        bottom_btn_row.add_widget(cancel_btn)
+        self.main_layout.add_widget(bottom_btn_row)
+        
+        start_btn.bind(on_release=self._confirm)
+        cancel_btn.bind(on_release=self.dismiss)
+        
+        self.content = self.main_layout
+        self.populate_list(self.current_path)
+
+    def _confirm(self, *args):
+        self.dismiss()
+        if self.selected_files:
+            self.on_confirm(list(self.selected_files))
+            
+    def go_up(self):
+        parent = os.path.dirname(self.current_path)
+        if parent and os.path.exists(parent):
+            self.current_path = parent
+            self.populate_list(self.current_path)
+            
+    def open_dir(self, dir_name):
+        new_path = os.path.join(self.current_path, dir_name)
+        if os.path.exists(new_path):
+            self.current_path = new_path
+            self.populate_list(self.current_path)
+            
+    def toggle_file(self, full_path, is_active):
+        if is_active:
+            self.selected_files.add(full_path)
+        else:
+            self.selected_files.discard(full_path)
+        self.status_label.text = f"{len(self.selected_files)} files selected"
+
+    def populate_list(self, path):
+        self.list_layout.clear_widgets()
+        self.path_label.text = f"Folder: {path}"
+        
+        # Up Button
+        up_btn = Button(text="[b].. Go Up a Folder[/b]", markup=True, font_size=32, size_hint_y=None, height=75, background_color=(0.3, 0.35, 0.45, 1))
+        up_btn.bind(on_release=lambda x: self.go_up())
+        self.list_layout.add_widget(up_btn)
+        
+        try:
+            items = os.listdir(path)
+        except Exception:
+            items = []
+            
+        dirs = []
+        files = []
+        for item in items:
+            if item.startswith('.'): continue
+            full_item_path = os.path.join(path, item)
+            if os.path.isdir(full_item_path):
+                dirs.append(item)
+            elif item.lower().endswith('.pdf'):
+                files.append(item)
+                
+        dirs.sort(key=lambda s: s.lower())
+        files.sort(key=lambda s: s.lower())
+        
+        # Add Folders
+        for d in dirs:
+            btn = Button(text=f"[Folder]   {d}", font_size=30, halign="left", size_hint_y=None, height=75, background_normal='', background_color=(0.15, 0.19, 0.27, 1))
+            btn.bind(size=lambda b, s: b.setter('text_size')(b, (s[0]-20, s[1])))
+            btn.bind(valign=lambda b, v: setattr(b, 'valign', 'middle'))
+            btn.bind(on_release=lambda btn, dir_name=d: self.open_dir(dir_name))
+            self.list_layout.add_widget(btn)
+            
+        # Add PDF Files with Checkboxes
+        for f in files:
+            full_path = os.path.join(path, f)
+            row = BoxLayout(size_hint_y=None, height=75, spacing=15)
+            
+            cb = CheckBox(size_hint_x=None, width=80, color=(0.2, 1.0, 0.2, 1))
+            cb.active = full_path in self.selected_files
+            cb.bind(active=lambda checkbox, value, fp=full_path: self.toggle_file(fp, value))
+            
+            btn = Button(text=f, font_size=30, halign="left", background_normal='', background_color=(0.1, 0.13, 0.2, 1))
+            btn.bind(size=lambda b, s: b.setter('text_size')(b, (s[0]-20, s[1])))
+            btn.bind(valign=lambda b, v: setattr(b, 'valign', 'middle'))
+            
+            # Make clicking the button toggle the checkbox
+            def make_toggle(checkbox):
+                return lambda *args: setattr(checkbox, 'active', not checkbox.active)
+                
+            btn.bind(on_release=make_toggle(cb))
+            
+            row.add_widget(cb)
+            row.add_widget(btn)
+            self.list_layout.add_widget(row)
+
+
 class MainLayout(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", padding=20, spacing=24, **kwargs)
@@ -227,7 +364,7 @@ class MainLayout(BoxLayout):
         self.add_widget(subtitle)
 
         select_btn = Button(
-            text="Select PDF File",
+            text="Select PDF File(s)",
             font_size=46,
             size_hint_y=None,
             height=70,
@@ -240,7 +377,6 @@ class MainLayout(BoxLayout):
         # Centered Checkbox Row with Distinct Colors and Larger Box
         checkbox_row = BoxLayout(size_hint_y=None, height=60, spacing=15, size_hint_x=None, pos_hint={'center_x': 0.5})
         
-        # Significantly brighter neon green and physically larger CheckBox
         self.checkbox = CheckBox(size_hint=(None, None), size=(60, 60), color=(0.2, 1.0, 0.2, 1)) 
         self.checkbox.bind(active=self.on_checkbox)
         
@@ -322,7 +458,6 @@ class MainLayout(BoxLayout):
         passwords = load_pool()
         text = "\n".join(f"{i+1}. {pw}" for i, pw in enumerate(passwords)) or "No passwords saved yet."
         
-        # Wrapped in a layout to give it padding from the edges
         content_layout = BoxLayout(orientation='vertical', size_hint_y=None, padding=15)
         
         lbl = Label(
@@ -345,32 +480,7 @@ class MainLayout(BoxLayout):
         popup.open()
 
     def open_file_chooser(self, *args):
-        chooser = FileChooserListView(
-            path=os.path.expanduser("~/storage/shared") if os.path.exists(
-                os.path.expanduser("~/storage/shared")) else "/storage/emulated/0/",
-            filters=["*.pdf"],
-            multiselect=True,
-        )
-        layout = BoxLayout(orientation="vertical")
-        layout.add_widget(chooser)
-
-        btn_row = BoxLayout(size_hint_y=None, height=70, spacing=10)
-        select_btn = Button(text="Select", background_color=(0.22, 0.74, 0.98, 1))
-        cancel_btn = Button(text="Cancel", background_color=(0.4, 0.4, 0.4, 1))
-        btn_row.add_widget(select_btn)
-        btn_row.add_widget(cancel_btn)
-        layout.add_widget(btn_row)
-
-        popup = Popup(title="Select PDF file(s)", content=layout, size_hint=(0.95, 0.95))
-
-        def confirm(*a):
-            files = list(chooser.selection)
-            popup.dismiss()
-            if files:
-                self.start_batch(files)
-
-        select_btn.bind(on_release=confirm)
-        cancel_btn.bind(on_release=popup.dismiss)
+        popup = PDFChooserPopup(on_confirm=self.start_batch)
         popup.open()
 
     def start_batch(self, files):
