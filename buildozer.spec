@@ -23,10 +23,10 @@ android.minapi = 24
 android.ndk = 28c
 android.accept_sdk_license = True
 android.archs = arm64-v8a,armeabi-v7a
-android.release_artifact = aab .
+android.release_artifact = aab
 p4a.branch = develop
 p4a.commit = d2ee8c54d9d42375a95f18159e950a119671cf63
 
 [buildozer]
 log_level = 2
-warn_on_root = 1
+warn_on_root = 0
