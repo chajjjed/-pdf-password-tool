@@ -1,7 +1,7 @@
 [app]
 title = PDF Password Tool
-package.name = pdfpasswordtool
-package.domain = org.yourshop
+package.name = pdfunlocker
+package.domain = com.chajjed
 
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
@@ -18,7 +18,7 @@ icon.filename = %(source.dir)s/icon.png
 
 android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE
 
-android.api = 33
+android.api = 36
 android.minapi = 24
 android.ndk = 28c
 android.accept_sdk_license = True
