@@ -28,5 +28,5 @@ p4a.branch = develop
 p4a.commit = d2ee8c54d9d42375a95f18159e950a119671cf63
 
 [buildozer]
-log_level = 2
+log_level = 1
 warn_on_root = 0
