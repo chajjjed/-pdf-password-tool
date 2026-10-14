@@ -28,6 +28,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.checkbox import CheckBox
 from kivy.core.window import Window
+from kivy.clock import Clock
 
 from pypdf import PdfReader, PdfWriter
 from pypdf.errors import FileNotDecryptedError, PdfReadError
@@ -37,6 +38,38 @@ try:
     Window.softinput_mode = "below_target"  # shift screen up so keyboard never covers the focused input
 except Exception:
     pass
+
+
+def get_system_insets():
+    """Pixels hidden under the status bar / camera notch / navigation bar (Android 15+ draws edge to edge)."""
+    try:
+        from jnius import autoclass
+        activity = autoclass("org.kivy.android.PythonActivity").mActivity
+        wi = activity.getWindow().getDecorView().getRootWindowInsets()
+        if wi is None:
+            return 0, 0, 0, 0
+        T = autoclass("android.view.WindowInsets$Type")
+        i = wi.getInsets(T.systemBars() | T.displayCutout())
+        return i.left, i.top, i.right, i.bottom
+    except Exception:
+        return 0, 0, 0, 0
+
+
+def ensure_storage_access():
+    """Open the 'All files access' settings page for this app if it is not allowed yet."""
+    try:
+        from jnius import autoclass
+        if autoclass("android.os.Environment").isExternalStorageManager():
+            return
+        Intent = autoclass("android.content.Intent")
+        Settings = autoclass("android.provider.Settings")
+        Uri = autoclass("android.net.Uri")
+        activity = autoclass("org.kivy.android.PythonActivity").mActivity
+        intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+        intent.setData(Uri.parse("package:" + activity.getPackageName()))
+        activity.startActivity(intent)
+    except Exception:
+        pass
 
 
 # ---------- Password pool helpers ----------
@@ -143,7 +176,7 @@ class HelpPopup(Popup):
             "This app unlocks password-protected PDFs and remembers the passwords so you don't have to type them again.\n\n"
             "1. Select your locked PDF file(s).\n"
             "2. If the app doesn't know the password yet, it will ask you for it.\n"
-            "3. Once entered, the password is saved to your secure 'Password Pool'.\n"
+            "3. Once entered, the password is saved to your private 'Password Pool' on this phone.\n"
             "4. Next time you open a PDF with that same password, it unlocks instantly and automatically!\n\n"
             "Unlocked files are safely saved in the same folder as the original."
         )
@@ -165,7 +198,7 @@ class PasswordPopup(Popup):
         self.title = f"Password needed for: {filename}"
         self.title_size = 40
         self.size_hint = (0.9, 0.5)
-        self.pos_hint = {"top": 0.98}
+        self.pos_hint = {"top": 0.92}
 
         layout = BoxLayout(orientation="vertical", spacing=14, padding=18)
         layout.add_widget(Label(text="No saved password matched.\nEnter the correct password:",
@@ -204,7 +237,7 @@ class PDFChooserPopup(Popup):
         super().__init__(**kwargs)
         self.title = "Select PDF File(s)"
         self.title_size = 36
-        self.size_hint = (0.95, 0.95)
+        self.size_hint = (0.95, 0.82)
         self.on_confirm = on_confirm
         self.selected_files = set()
         
@@ -548,7 +581,18 @@ class MainLayout(BoxLayout):
 class PdfPasswordApp(App):
     def build(self):
         self.title = "PDF Password Tool"
-        return MainLayout()
+        self.main = MainLayout()
+        return self.main
+
+    def apply_insets(self, *args):
+        l, t, r, b = get_system_insets()
+        self.main.padding = [20 + l, 20 + t, 20 + r, 20 + b]
+
+    def on_start(self):
+        Clock.schedule_once(self.apply_insets, 0.5)
+        Clock.schedule_once(self.apply_insets, 1.5)
+        Clock.schedule_once(self.apply_insets, 3.0)
+        Clock.schedule_once(lambda dt: ensure_storage_access(), 1.0)
 
 
 if __name__ == "__main__":
