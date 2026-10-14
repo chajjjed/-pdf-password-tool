@@ -6,7 +6,7 @@ package.domain = com.chajjed
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 
-version = 1.0
+version = 1.1
 
 
 
