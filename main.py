@@ -159,6 +159,67 @@ def save_unlocked_copy(pdf_path, password, overwrite=False):
     return out_path
 
 
+
+# ---------- Open unlocked PDF in a PDF reader ----------
+
+_keep_alive = []  # keeps the Android callback object from being cleaned up too early
+
+
+def open_pdf_in_reader(path, on_message):
+    """Ask Android to open the PDF. Uses the default PDF reader, or shows the
+    'Open with' list if no default is set. on_message(text) is used for problems."""
+    if not os.environ.get("ANDROID_ARGUMENT"):
+        return  # not on a real phone (e.g. testing elsewhere): do nothing
+    try:
+        from jnius import autoclass, PythonJavaClass, java_method
+
+        Intent = autoclass("android.content.Intent")
+        Uri = autoclass("android.net.Uri")
+        File = autoclass("java.io.File")
+        MediaScannerConnection = autoclass("android.media.MediaScannerConnection")
+        activity = autoclass("org.kivy.android.PythonActivity").mActivity
+
+        state = {"done": False}
+
+        def launch(uri):
+            if state["done"]:
+                return
+            state["done"] = True
+            try:
+                if uri is None:
+                    # Fallback: plain file address
+                    StrictMode = autoclass("android.os.StrictMode")
+                    Builder = autoclass("android.os.StrictMode$VmPolicy$Builder")
+                    StrictMode.setVmPolicy(Builder().build())
+                    uri = Uri.fromFile(File(path))
+                intent = Intent(Intent.ACTION_VIEW)
+                intent.setDataAndType(uri, "application/pdf")
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                activity.startActivity(intent)
+            except Exception as e:
+                name = str(e)
+                if "ActivityNotFound" in name or "No Activity" in name:
+                    on_message("No PDF reader app found on this phone. Please install one.")
+                else:
+                    on_message(f"Could not open the PDF: {e}")
+
+        class ScanListener(PythonJavaClass):
+            __javainterfaces__ = ["android/media/MediaScannerConnection$OnScanCompletedListener"]
+            __javacontext__ = "app"
+
+            @java_method("(Ljava/lang/String;Landroid/net/Uri;)V")
+            def onScanCompleted(self, scanned_path, uri):
+                Clock.schedule_once(lambda dt: launch(uri), 0)
+
+        listener = ScanListener()
+        _keep_alive.append(listener)
+        MediaScannerConnection.scanFile(activity, [path], ["application/pdf"], listener)
+        # If Android is slow to answer, try the fallback after 3 seconds
+        Clock.schedule_once(lambda dt: launch(None), 3)
+    except Exception as e:
+        on_message(f"Could not open the PDF: {e}")
+
+
 # ---------- UI ----------
 
 class HelpPopup(Popup):
@@ -376,6 +437,7 @@ class MainLayout(BoxLayout):
         self.overwrite = False
         self.queue = []
         self.queue_index = 0
+        self.opened_first = False
 
         title = Label(
             text="[b]PDF Password Tool[/b]",
@@ -519,8 +581,17 @@ class MainLayout(BoxLayout):
     def start_batch(self, files):
         self.queue = files
         self.queue_index = 0
+        self.opened_first = False
         self.log(f"\nSelected {len(files)} file(s). Starting...")
         self.process_next()
+
+    def after_save(self, out_path):
+        """Open only the FIRST unlocked file of the batch."""
+        if self.opened_first:
+            return
+        self.opened_first = True
+        self.log("Opening the unlocked PDF...")
+        open_pdf_in_reader(out_path, self.log)
 
     def process_next(self):
         if self.queue_index >= len(self.queue):
@@ -548,6 +619,7 @@ class MainLayout(BoxLayout):
             self.log("Match found. Unlocking...")
             out_path = save_unlocked_copy(pdf_path, found, overwrite=self.overwrite)
             self.log(f"Saved: {out_path}")
+            self.after_save(out_path)
             self.process_next()
             return
 
@@ -565,6 +637,7 @@ class MainLayout(BoxLayout):
                 add_password_to_pool(password)
                 out_path = save_unlocked_copy(pdf_path, password, overwrite=self.overwrite)
                 self.log(f"Saved: {out_path}")
+                self.after_save(out_path)
                 self.process_next()
             else:
                 self.log("Incorrect password. Retry...")
