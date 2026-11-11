@@ -1,5 +1,5 @@
 """
-PDF Password Tool - Android Version (runs inside Pydroid 3)
+PDF Unlocker - Android Version (runs inside Pydroid 3)
 -------------------------------------------------------------
 Same idea as the Windows version:
 - Pick one or more password-protected PDFs.
@@ -29,6 +29,13 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.checkbox import CheckBox
 from kivy.core.window import Window
 from kivy.clock import Clock
+
+# AES support for PDFs (e.g. SBI statements) without any native library
+try:
+    import pure_aes
+    pure_aes.install()
+except Exception:
+    pass
 
 from pypdf import PdfReader, PdfWriter
 from pypdf.errors import FileNotDecryptedError, PdfReadError
