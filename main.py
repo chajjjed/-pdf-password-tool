@@ -132,6 +132,14 @@ def try_known_passwords(pdf_path, passwords):
     return None
 
 
+def friendly_error(e):
+    text = f"{type(e).__name__}: {e}"
+    low = text.lower()
+    if "aes" in low or "cryptography" in low or "pycryptodome" in low or "dependency" in low:
+        return "This PDF uses AES encryption and this app build has no AES support. (" + text + ")"
+    return text
+
+
 def save_unlocked_copy(pdf_path, password, overwrite=False):
     reader = PdfReader(pdf_path)
     if reader.is_encrypted:
@@ -153,8 +161,19 @@ def save_unlocked_copy(pdf_path, password, overwrite=False):
             out_path = os.path.join(folder, f"{base_name}_unlocked_{counter}.pdf")
             counter += 1
 
-    with open(out_path, "wb") as f:
-        writer.write(f)
+    # Write to a temporary file first, so the original is never damaged if something fails
+    tmp_path = out_path + ".tmp"
+    try:
+        with open(tmp_path, "wb") as f:
+            writer.write(f)
+        os.replace(tmp_path, out_path)
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
     return out_path
 
@@ -617,7 +636,12 @@ class MainLayout(BoxLayout):
 
         if found is not None:
             self.log("Match found. Unlocking...")
-            out_path = save_unlocked_copy(pdf_path, found, overwrite=self.overwrite)
+            try:
+                out_path = save_unlocked_copy(pdf_path, found, overwrite=self.overwrite)
+            except Exception as e:
+                self.log("Could not unlock this file: " + friendly_error(e))
+                self.process_next()
+                return
             self.log(f"Saved: {out_path}")
             self.after_save(out_path)
             self.process_next()
@@ -633,9 +657,14 @@ class MainLayout(BoxLayout):
                 self.process_next()
                 return
             if try_password(pdf_path, password):
+                try:
+                    out_path = save_unlocked_copy(pdf_path, password, overwrite=self.overwrite)
+                except Exception as e:
+                    self.log("Password accepted, but the file could not be unlocked: " + friendly_error(e))
+                    self.process_next()
+                    return
                 self.log("Password correct. Saved to pool.")
                 add_password_to_pool(password)
-                out_path = save_unlocked_copy(pdf_path, password, overwrite=self.overwrite)
                 self.log(f"Saved: {out_path}")
                 self.after_save(out_path)
                 self.process_next()
