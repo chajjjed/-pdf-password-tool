@@ -1,12 +1,12 @@
 [app]
-title = PDF Password Tool
+title = PDF Unlocker
 package.name = pdfunlocker
 package.domain = com.chajjed
 
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 
-version = 1.1
+version = 1.3
 
 
 
