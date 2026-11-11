@@ -1,16 +1,16 @@
 [app]
-title = PDF Unlocker
+title = PDF Password Tool
 package.name = pdfunlocker
 package.domain = com.chajjed
 
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 
-version = 1.3
+version = 1.2
 
 
 
-requirements = python3==3.11.8,hostpython3==3.11.8,kivy,pypdf
+requirements = python3==3.11.8,hostpython3==3.11.8,kivy,pypdf,pycryptodome
 orientation = portrait
 fullscreen = 0
 
