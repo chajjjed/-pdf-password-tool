@@ -301,3 +301,86 @@ def install():
         "Crypto.Util.Padding": padding,
     })
     return True
+
+
+# ---------------- direct patch of pypdf (works whatever pypdf version) ----------------
+
+
+def self_test():
+    """Quick check that the AES code works on this device (FIPS-197 test vector)."""
+    key = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+    plain = bytes.fromhex("00112233445566778899aabbccddeeff")
+    cipher = bytes.fromhex("69c4e0d86a7b0430d8cdb78070b4c55a")
+    ok = _AESCipher(key, MODE_ECB).encrypt(plain) == cipher
+    ok = ok and _AESCipher(key, MODE_ECB).decrypt(cipher) == plain
+    return ok
+
+
+def _p_aes_ecb_encrypt(key, data):
+    return _AESCipher(key, MODE_ECB).encrypt(data)
+
+
+def _p_aes_ecb_decrypt(key, data):
+    return _AESCipher(key, MODE_ECB).decrypt(data)
+
+
+def _p_aes_cbc_encrypt(key, iv, data):
+    return _AESCipher(key, MODE_CBC, iv).encrypt(data)
+
+
+def _p_aes_cbc_decrypt(key, iv, data):
+    return _AESCipher(key, MODE_CBC, iv).decrypt(data)
+
+
+class _PCryptAES:
+    """Same behaviour as pypdf's own CryptAES (PDF streams/strings)."""
+
+    def __init__(self, key):
+        self.key = bytes(key)
+
+    def encrypt(self, data):
+        import os
+        iv = os.urandom(16)
+        data = _pad(data, 16)
+        return iv + _AESCipher(self.key, MODE_CBC, iv).encrypt(data)
+
+    def decrypt(self, data):
+        data = bytes(data)
+        iv = data[:16]
+        data = data[16:]
+        if not data:
+            return data
+        if len(data) % 16 != 0:
+            data = _pad(data, 16)
+        d = _AESCipher(self.key, MODE_CBC, iv).decrypt(data)
+        return d[: -d[-1]]
+
+
+_REPLACEMENTS = {
+    "aes_ecb_encrypt": _p_aes_ecb_encrypt,
+    "aes_ecb_decrypt": _p_aes_ecb_decrypt,
+    "aes_cbc_encrypt": _p_aes_cbc_encrypt,
+    "aes_cbc_decrypt": _p_aes_cbc_decrypt,
+    "CryptAES": _PCryptAES,
+}
+
+
+def patch_pypdf():
+    """Call AFTER 'import pypdf'. Wherever pypdf is still using its 'no AES
+    library' stand-ins, swap in the pure-Python versions. Returns how many
+    names were replaced (0 = nothing needed / nothing found)."""
+    count = 0
+    for modname, mod in list(sys.modules.items()):
+        if not modname.startswith("pypdf") or mod is None:
+            continue
+        for name, new in _REPLACEMENTS.items():
+            old = getattr(mod, name, None)
+            if old is None or old is new:
+                continue
+            if "_fallback" in str(getattr(old, "__module__", "")):
+                try:
+                    setattr(mod, name, new)
+                    count += 1
+                except Exception:
+                    pass
+    return count
