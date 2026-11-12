@@ -316,35 +316,36 @@ def self_test():
     return ok
 
 
-def _p_aes_ecb_encrypt(key, data):
+def _p_aes_ecb_encrypt(key, data, *args, **kwargs):
     return _AESCipher(key, MODE_ECB).encrypt(data)
 
 
-def _p_aes_ecb_decrypt(key, data):
+def _p_aes_ecb_decrypt(key, data, *args, **kwargs):
     return _AESCipher(key, MODE_ECB).decrypt(data)
 
 
-def _p_aes_cbc_encrypt(key, iv, data):
+def _p_aes_cbc_encrypt(key, iv, data, *args, **kwargs):
     return _AESCipher(key, MODE_CBC, iv).encrypt(data)
 
 
-def _p_aes_cbc_decrypt(key, iv, data):
+def _p_aes_cbc_decrypt(key, iv, data, *args, **kwargs):
     return _AESCipher(key, MODE_CBC, iv).decrypt(data)
 
 
 class _PCryptAES:
-    """Same behaviour as pypdf's own CryptAES (PDF streams/strings)."""
+    """Same behaviour as pypdf's own CryptAES (PDF streams/strings).
+    Accepts extra arguments (newer pypdf versions pass e.g. strict=...)."""
 
-    def __init__(self, key):
+    def __init__(self, key, *args, **kwargs):
         self.key = bytes(key)
 
-    def encrypt(self, data):
+    def encrypt(self, data, *args, **kwargs):
         import os
         iv = os.urandom(16)
         data = _pad(data, 16)
         return iv + _AESCipher(self.key, MODE_CBC, iv).encrypt(data)
 
-    def decrypt(self, data):
+    def decrypt(self, data, *args, **kwargs):
         data = bytes(data)
         iv = data[:16]
         data = data[16:]
@@ -353,7 +354,10 @@ class _PCryptAES:
         if len(data) % 16 != 0:
             data = _pad(data, 16)
         d = _AESCipher(self.key, MODE_CBC, iv).decrypt(data)
-        return d[: -d[-1]]
+        n = d[-1]
+        if 1 <= n <= 16:
+            return d[:-n]
+        return d
 
 
 _REPLACEMENTS = {
