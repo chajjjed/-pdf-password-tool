@@ -1,5 +1,5 @@
 """
-PDF Unlocker - Android Version (runs inside Pydroid 3)
+PDF Password Tool - Android Version (runs inside Pydroid 3)
 -------------------------------------------------------------
 Same idea as the Windows version:
 - Pick one or more password-protected PDFs.
@@ -31,14 +31,22 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 
 # AES support for PDFs (e.g. SBI statements) without any native library
+AES_STATUS = "unknown"
 try:
     import pure_aes
     pure_aes.install()
-except Exception:
-    pass
+except Exception as _e:
+    AES_STATUS = f"shim failed: {_e}"
 
 from pypdf import PdfReader, PdfWriter
 from pypdf.errors import FileNotDecryptedError, PdfReadError
+
+try:
+    from pypdf import _crypt_providers as _cp
+    _prov = _cp.crypt_provider
+    AES_STATUS = f"{_prov[0]} {_prov[1]}" if _prov[0] != "local_crypt_fallback" else "NONE (fallback)"
+except Exception as _e:
+    AES_STATUS = f"{AES_STATUS}; check failed: {_e}"
 
 Window.clearcolor = (0.06, 0.09, 0.16, 1)  # dark navy background
 try:
@@ -564,6 +572,7 @@ class MainLayout(BoxLayout):
 
         self.log(f"Password pool has {len(load_pool())} saved password(s).")
         self.log("Unlocked files save in the same folder as the original.")
+        self.log(f"AES engine: {AES_STATUS}")
 
     def show_help(self, *args):
         popup = HelpPopup()
