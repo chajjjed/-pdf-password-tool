@@ -31,22 +31,36 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 
 # AES support for PDFs (e.g. SBI statements) without any native library
-AES_STATUS = "unknown"
+AES_NOTES = []
 try:
     import pure_aes
-    pure_aes.install()
+    if pure_aes.install():
+        AES_NOTES.append("shim on")
 except Exception as _e:
-    AES_STATUS = f"shim failed: {_e}"
+    pure_aes = None
+    AES_NOTES.append(f"pure_aes import FAILED: {_e}")
 
 from pypdf import PdfReader, PdfWriter
 from pypdf.errors import FileNotDecryptedError, PdfReadError
 
 try:
+    import pypdf as _pypdf_mod
+    AES_NOTES.append(f"pypdf {_pypdf_mod.__version__}")
+except Exception:
+    pass
+try:
     from pypdf import _crypt_providers as _cp
-    _prov = _cp.crypt_provider
-    AES_STATUS = f"{_prov[0]} {_prov[1]}" if _prov[0] != "local_crypt_fallback" else "NONE (fallback)"
+    AES_NOTES.append(f"provider {_cp.crypt_provider[0]}")
 except Exception as _e:
-    AES_STATUS = f"{AES_STATUS}; check failed: {_e}"
+    AES_NOTES.append(f"provider check failed: {_e}")
+try:
+    if pure_aes is not None:
+        _n = pure_aes.patch_pypdf()
+        AES_NOTES.append(f"patched {_n}")
+        AES_NOTES.append("self-test OK" if pure_aes.self_test() else "self-test FAILED")
+except Exception as _e:
+    AES_NOTES.append(f"patch FAILED: {_e}")
+AES_STATUS = "; ".join(AES_NOTES)
 
 Window.clearcolor = (0.06, 0.09, 0.16, 1)  # dark navy background
 try:
