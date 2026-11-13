@@ -1,5 +1,5 @@
 """
-PDF Password Tool - Android Version (runs inside Pydroid 3)
+Pdf Unlocker - Android Version (runs inside Pydroid 3)
 -------------------------------------------------------------
 Same idea as the Windows version:
 - Pick one or more password-protected PDFs.
@@ -281,7 +281,7 @@ class HelpPopup(Popup):
         layout = BoxLayout(orientation="vertical", spacing=15, padding=20)
         
         help_text = (
-            "Welcome to the PDF Password Tool!\n\n"
+            "Welcome to the Pdf Unlocker!\n\n"
             "This app unlocks password-protected PDFs and remembers the passwords so you don't have to type them again.\n\n"
             "1. Select your locked PDF file(s).\n"
             "2. If the app doesn't know the password yet, it will ask you for it.\n"
@@ -488,7 +488,7 @@ class MainLayout(BoxLayout):
         self.opened_first = False
 
         title = Label(
-            text="[b]PDF Password Tool[/b]",
+            text="[b]Pdf Unlocker[/b]",
             markup=True,
             font_size=48,
             size_hint_y=None,
@@ -712,7 +712,7 @@ class MainLayout(BoxLayout):
 
 class PdfPasswordApp(App):
     def build(self):
-        self.title = "PDF Password Tool"
+        self.title = "Pdf Unlocker"
         self.main = MainLayout()
         return self.main
 
